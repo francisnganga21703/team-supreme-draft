@@ -384,25 +384,38 @@ function render(){
   document.querySelectorAll('#tabs a').forEach(a=>{ a.hidden=locked&&a.dataset.view!=='board'; if(a.dataset.view===S.view) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
   const meBox=$('.me'); $('#meSel').hidden=true; meBox.hidden=false;
   let fixed=$('#meFixed'); if(!fixed){ fixed=document.createElement('span'); fixed.id='meFixed'; meBox.insertBefore(fixed,$('#meSel')); }
-  fixed.innerHTML=`<b>${S.me?esc(pname(S.me)):esc(S.email)}</b> <button class="btn small" id="signOut">Sign out</button>`; $('#signOut').onclick=signOut;
+  fixed.innerHTML=`<b>${S.me?esc(pname(S.me)):esc(S.email)}</b> <button class="btn small" id="setPassBtn">Set password</button> <button class="btn small" id="signOut">Sign out</button>`; $('#signOut').onclick=signOut; $('#setPassBtn').onclick=()=>{ S.setPass=!S.setPass; render(); };
   const ap=$('#adminPill'); ap.hidden=!S.admin; ap.textContent=S.owner?'owner':'admin';
   if(!S.me){ m.innerHTML=`<div class="empty"><h2>You're signed in, but not on the roster</h2><p class="muted">${esc(S.email)} doesn't match any active person's email. Ask an admin to add it on the Roster tab, then sign in again.</p></div>`; return; }
-  ({board:renderBoard,roster:renderRoster,weeks:renderWeeks,settings:renderSettings})[S.view]();
+  ({board:renderBoard,roster:renderRoster,weeks:renderWeeks,settings:renderSettings})[S.view](); renderSetPassword();
 }
 function renderGate(){
   const m=$('#main'); let remembered=''; try{ remembered=localStorage.getItem('draft.email')||''; }catch(e){}
-  const step=S.gateStep||'email';
-  m.innerHTML=`<form class="gate" id="gateForm"><div><div class="eyebrow">Shift draft</div><h2>Sign in to the draft</h2><p class="muted" style="margin:6px 0 0">${step==='email'?'Enter the email on the roster and we will send you a one-time sign-in email.':`We sent a sign-in email to <b>${esc(S.gateEmail)}</b>. Open it and click the link; you will come straight back here signed in. If the email shows a code instead, enter it below. It is good for 24 hours and works once.`}</p></div>
-    ${step==='email'?`<label>Your email<input type="email" id="gEmail" value="${esc(remembered)}" autocomplete="email" required placeholder="name@company.com"></label>`:`<label>Login code (if your email has one)<input class="code" id="gCode" autocomplete="one-time-code" inputmode="numeric" maxlength="8" placeholder="12345678"></label>`}
+  const step=S.gateStep||'password';
+  const intro={password:'Enter your email and password.',email:'Enter the email on the roster and we will send you a one-time sign-in email.',code:`We sent a sign-in email to <b>${esc(S.gateEmail)}</b>. Open it and click the link; you will come straight back here signed in. If the email shows a code instead, enter it below. It is good for 24 hours and works once.`}[step];
+  const fields={password:`<label>Your email<input type="email" id="gEmail" value="${esc(remembered)}" autocomplete="username" required placeholder="name@company.com"></label><label>Password<input type="password" id="gPass" autocomplete="current-password" required></label>`,
+    email:`<label>Your email<input type="email" id="gEmail" value="${esc(remembered)}" autocomplete="email" required placeholder="name@company.com"></label>`,
+    code:`<label>Login code (if your email has one)<input class="code" id="gCode" autocomplete="one-time-code" inputmode="numeric" maxlength="8" placeholder="12345678"></label>`}[step];
+  const alt={password:'<button class="btn" type="button" id="gAlt" data-step="email">Email me a one-time code instead</button>',email:'<button class="btn" type="button" id="gAlt" data-step="password">I have a password</button>',code:'<button class="btn" type="button" id="gAlt" data-step="email">Use a different email</button>'}[step];
+  m.innerHTML=`<form class="gate" id="gateForm"><div><div class="eyebrow">Shift draft</div><h2>Sign in to the draft</h2><p class="muted" style="margin:6px 0 0">${intro}</p></div>
+    ${fields}
     <div class="err" id="gErr" hidden></div>
     <button class="btn primary" type="submit" id="gBtn">${step==='email'?'Email me a code':'Sign in'}</button>
-    ${step==='email'?'':'<button class="btn" type="button" id="gBack">Use a different email</button>'}
-    <p class="faint" style="margin:0;font-size:12px">Only people on the team roster can get in. No email after a minute? Check spam, or ask the admin to resend from the Roster tab.</p></form>`;
-  $('#gBack')?.addEventListener('click',()=>{ S.gateStep='email'; render(); });
-  $('#gateForm').addEventListener('submit',async e=>{ e.preventDefault(); const err=$('#gErr'); const btn=$('#gBtn'); btn.disabled=true; btn.textContent='Working…';
-    if(step==='email'){ const email=normEmail($('#gEmail').value); if(!email){ btn.disabled=false; btn.textContent='Email me a code'; return; } const msg=await requestCode(email); if(msg){ err.textContent=msg; err.hidden=false; btn.disabled=false; btn.textContent='Email me a code'; return; } try{ localStorage.setItem('draft.email',email); }catch(x){} S.gateEmail=email; S.gateStep='code'; render(); return; }
-    const codeVal=$('#gCode').value.trim(); if(!codeVal){ err.textContent='Click the link in the email, or enter the code if there is one.'; err.hidden=false; btn.disabled=false; btn.textContent='Sign in'; return; } const msg=await verifyCode(S.gateEmail,codeVal); if(msg){ err.textContent=/expired|invalid/i.test(msg)?'That code is wrong or has expired. Request a new one.':msg; err.hidden=false; btn.disabled=false; btn.textContent='Sign in'; return; }
-    S.gateStep='email'; toast('Signed in'); });
+    ${alt}
+    <p class="faint" style="margin:0;font-size:12px">Only people on the team roster can get in. ${step==='password'?'No password yet? Use the one-time code, then choose "Set password" at the top of the board.':'No email after a minute? Check spam, or ask the admin to resend from the Roster tab.'}</p></form>`;
+  $('#gAlt')?.addEventListener('click',e=>{ S.gateStep=e.currentTarget.dataset.step; render(); });
+  $('#gateForm').addEventListener('submit',async e=>{ e.preventDefault(); const err=$('#gErr'); const btn=$('#gBtn'); const label=btn.textContent; btn.disabled=true; btn.textContent='Working…'; const fail=msg=>{ err.textContent=msg; err.hidden=false; btn.disabled=false; btn.textContent=label; };
+    if(step==='password'){ const email=normEmail($('#gEmail').value); const password=$('#gPass').value; if(!email||!password){ fail('Enter your email and password.'); return; } const {error}=await S.sb.auth.signInWithPassword({email,password}); if(error){ fail(/invalid/i.test(error.message)?'Wrong email or password. If you have never set a password, use the one-time code instead.':error.message); return; } try{ localStorage.setItem('draft.email',email); }catch(x){} S.gateStep='password'; toast('Signed in'); return; }
+    if(step==='email'){ const email=normEmail($('#gEmail').value); if(!email){ fail('Enter your email.'); return; } const msg=await requestCode(email); if(msg){ fail(msg); return; } try{ localStorage.setItem('draft.email',email); }catch(x){} S.gateEmail=email; S.gateStep='code'; render(); return; }
+    const codeVal=$('#gCode').value.trim(); if(!codeVal){ fail('Click the link in the email, or enter the code if there is one.'); return; } const msg=await verifyCode(S.gateEmail,codeVal); if(msg){ fail(/expired|invalid/i.test(msg)?'That code is wrong or has expired. Request a new one.':msg); return; }
+    S.gateStep='password'; toast('Signed in'); });
+}
+function renderSetPassword(){
+  const m=$('#main'); if(!S.setPass) return; const box=document.createElement('div'); box.className='panel'; box.id='setPassPanel';
+  box.innerHTML=`<header><h2>Set a password for ${esc(S.email)}</h2><span class="faint">After this you can sign in with email + password, no code needed</span></header><form class="form" id="setPassForm" style="border-top:0"><label>New password (8+ characters)<input type="password" id="np1" minlength="8" autocomplete="new-password" required></label><label>Repeat it<input type="password" id="np2" minlength="8" autocomplete="new-password" required></label><div class="actions"><button class="btn" type="button" id="npCancel">Cancel</button><button class="btn primary" type="submit">Save password</button></div></form>`;
+  m.prepend(box);
+  $('#npCancel').addEventListener('click',()=>{ S.setPass=false; render(); });
+  $('#setPassForm').addEventListener('submit',async e=>{ e.preventDefault(); const a=$('#np1').value,b=$('#np2').value; if(a!==b){ toast('The two passwords do not match'); return; } const {error}=await S.sb.auth.updateUser({password:a}); if(error){ toast('Could not save: '+error.message); return; } S.setPass=false; toast('Password saved. Next time, sign in with email + password.'); render(); });
 }
 
 function renderBoard(){
