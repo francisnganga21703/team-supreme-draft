@@ -138,7 +138,7 @@ td input[type=number],td input[type=text]{width:92px;padding:3px 6px;font-family
   <div class="top">
     <div class="brand"><h1 id="teamName">Team Supreme Draft</h1><small id="weekLabel">Shift draft board</small></div>
     <nav class="tabs" id="tabs"><a href="#board" data-view="board">Board</a><a href="#roster" data-view="roster">Roster</a><a href="#weeks" data-view="weeks">Periods</a><a href="#settings" data-view="settings">Settings</a></nav>
-    <label class="me">I am <select id="meSel" aria-label="Who are you"><option value="">choose your name</option></select><span class="pill good" id="adminPill" hidden>admin</span></label>
+    <div class="me">I am <select id="meSel" aria-label="Who are you"><option value="">choose your name</option></select><span class="pill good" id="adminPill" hidden>admin</span></div>
   </div>
   <div id="main"><div class="empty"><h2>Loading the board…</h2></div></div>
 </div>
@@ -384,7 +384,7 @@ function render(){
   document.querySelectorAll('#tabs a').forEach(a=>{ a.hidden=locked&&a.dataset.view!=='board'; if(a.dataset.view===S.view) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
   const meBox=$('.me'); $('#meSel').hidden=true; meBox.hidden=false;
   let fixed=$('#meFixed'); if(!fixed){ fixed=document.createElement('span'); fixed.id='meFixed'; meBox.insertBefore(fixed,$('#meSel')); }
-  fixed.innerHTML=`<b>${S.me?esc(pname(S.me)):esc(S.email)}</b> <button class="btn small" id="setPassBtn">Reset password</button> <button class="btn small" id="signOut">Sign out</button>`; $('#signOut').onclick=signOut; $('#setPassBtn').onclick=()=>{ S.setPass=!S.setPass; render(); };
+  fixed.innerHTML=`<b>${S.me?esc(pname(S.me)):esc(S.email)}</b> <button class="btn small" id="setPassBtn">Reset password</button> <button class="btn small" id="signOut">Sign out</button>`; $('#signOut').onclick=signOut; $('#setPassBtn').onclick=e=>{ e.preventDefault(); S.setPass=true; render(); $('#setPassPanel')?.scrollIntoView({block:'start'}); $('#np1')?.focus(); };
   const ap=$('#adminPill'); ap.hidden=!S.admin; ap.textContent=S.owner?'owner':'admin';
   if(!S.me){ m.innerHTML=`<div class="empty"><h2>You're signed in, but not on the roster</h2><p class="muted">${esc(S.email)} doesn't match any active person's email. Ask an admin to add it on the Roster tab, then sign in again.</p></div>`; return; }
   ({board:renderBoard,roster:renderRoster,weeks:renderWeeks,settings:renderSettings})[S.view](); renderSetPassword();
