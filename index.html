@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Team Supreme Draft</title>
+<!-- ===== SETUP: paste your Supabase project URL and anon (public) key here ===== -->
+<script>
+window.BOARD_CONFIG = {
+  SUPABASE_URL: "https://zdqfxprpuxwxmbcowqvn.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_XJJeQ3t9EYJxgwGmRZDRVQ_xOaKot50"
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500;75..100,700;75..100,800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a scoreboard strip across the top (who's on the clock), the week grid beneath, draft order down the right on wide screens. */
+:root{
+  --paper:#F4F3EE; --surface:#FFFFFF; --ink:#1B1A17; --ink-2:#55534C; --ink-3:#8C8A82; --line:#DAD8CF; --line-2:#ECEAE3;
+  --accent:#2448B3; --accent-ink:#FFFFFF; --accent-soft:#DDE4F7;
+  --clock:#F2B61B; --clock-ink:#1B1A17; --clock-soft:#FBEFC7;
+  --good:#237A4B; --good-soft:#D9EFE1; --warn:#A85A00; --warn-soft:#F8E7CC; --crit:#B23A2B; --crit-soft:#F6DAD5;
+  --aw:#0E7C86; --aw-soft:#D6EEF0; --ch:#6E44A8; --ch-soft:#E7DDF5; --wr:#B86A0B; --wr-soft:#F7E6CC;
+  --display:"Archivo","Source Sans 3",system-ui,sans-serif; --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --r:5px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#15161A; --surface:#1E2026; --ink:#ECEBE6; --ink-2:#B4B2AA; --ink-3:#7E7C75; --line:#2F3239; --line-2:#262930;
+  --accent:#7D9BEF; --accent-ink:#15161A; --accent-soft:#232C47; --clock:#F2B61B; --clock-ink:#1B1A17; --clock-soft:#3C3212;
+  --good:#5CC48A; --good-soft:#15301F; --warn:#E5A24A; --warn-soft:#3A2A10; --crit:#EE7F70; --crit-soft:#3C1A16;
+  --aw:#4FC0CA; --aw-soft:#12333A; --ch:#B493E6; --ch-soft:#2B2140; --wr:#E9A44D; --wr-soft:#3B2A12; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#15161A; --surface:#1E2026; --ink:#ECEBE6; --ink-2:#B4B2AA; --ink-3:#7E7C75; --line:#2F3239; --line-2:#262930;
+  --accent:#7D9BEF; --accent-ink:#15161A; --accent-soft:#232C47; --clock:#F2B61B; --clock-ink:#1B1A17; --clock-soft:#3C3212;
+  --good:#5CC48A; --good-soft:#15301F; --warn:#E5A24A; --warn-soft:#3A2A10; --crit:#EE7F70; --crit-soft:#3C1A16;
+  --aw:#4FC0CA; --aw-soft:#12333A; --ch:#B493E6; --ch-soft:#2B2140; --wr:#E9A44D; --wr-soft:#3B2A12; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{margin:0;padding:0} body{background:var(--paper);color:var(--ink);font:15px/1.4 var(--body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:24px;font-weight:800;font-stretch:85%;text-transform:uppercase;letter-spacing:.01em}
+h2{font-size:17px;font-weight:700}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);font-weight:600}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px}
+.muted{color:var(--ink-2)} .faint{color:var(--ink-3)}
+.wrap{padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.top .brand{display:flex;flex-direction:column}
+.top .brand small{color:var(--ink-3);font-size:12px}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
+.tabs a{padding:7px 12px;border-radius:var(--r);text-decoration:none;color:var(--ink-2);font-weight:600}
+.tabs a:hover{background:var(--line-2);color:var(--ink)}
+.tabs a[aria-current="page"]{background:var(--ink);color:var(--paper)}
+.me{display:flex;align-items:center;gap:8px;font-size:13px}
+select,input[type=text],input[type=number],input[type=date]{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:6px 9px;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:6px 12px;font-weight:600}
+.btn:hover{border-color:var(--ink-3)} .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)} .btn.small{padding:3px 9px;font-size:12px} .btn.danger{color:var(--crit)} .btn:disabled{opacity:.45;cursor:default}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,.slot:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+.clock{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 20px;align-items:center;background:var(--clock-soft);border:1px solid var(--clock);border-left:8px solid var(--clock);border-radius:var(--r);padding:12px 16px}
+.clock.done{background:var(--good-soft);border-color:var(--good)}
+.clock.closed{background:var(--line-2);border-color:var(--line)}
+.clock .who{font-family:var(--display);font-size:26px;font-weight:800;font-stretch:85%;line-height:1.1}
+.clock .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--ink-2);margin-top:2px}
+.clock .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;grid-column:1/-1;border-top:1px solid var(--clock);padding-top:8px}
+.clock.done .acts,.clock.closed .acts{border-top-color:var(--line)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:1000px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.panel>header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-2)}
+.panel>.body{padding:12px 14px} .panel>.body.flush{padding:0}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%}
+th,td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--line-2);vertical-align:middle;white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;font-size:13px}
+.grid{border-collapse:separate;border-spacing:0}
+.grid th{position:sticky;top:0;background:var(--surface);z-index:2}
+.grid th.loc{text-align:left;font-family:var(--display);font-size:13px;letter-spacing:.08em;padding:10px 10px 6px}
+.grid td.time{font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap;min-width:150px;position:sticky;left:0;background:var(--surface);z-index:1}
+.grid td.time small{display:block;color:var(--ink-3);font-size:10.5px}
+.grid tr.loc-AW th.loc{color:var(--aw)} .grid tr.loc-CH th.loc{color:var(--ch)} .grid tr.loc-WR th.loc{color:var(--wr)}
+.slot{min-width:118px;height:44px;padding:0 8px;border:1px dashed var(--line);border-radius:var(--r);display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:600;line-height:1.15;color:var(--ink-3);user-select:none}
+.slot.open.live{cursor:pointer;color:var(--ink-2)} .slot.open.live:hover{background:var(--clock-soft);border-color:var(--clock);color:var(--ink)}
+.slot.taken{border-style:solid;color:var(--ink)}
+.AW .slot.taken{background:var(--aw-soft);border-color:var(--aw)} .CH .slot.taken{background:var(--ch-soft);border-color:var(--ch)} .WR .slot.taken{background:var(--wr-soft);border-color:var(--wr)}
+.slot.mine{box-shadow:inset 0 0 0 2px var(--accent)}
+.slot.latest{box-shadow:inset 0 0 0 2px var(--clock)}
+.slot.blocked{opacity:.45;cursor:not-allowed}
+.slot.closed{background:repeating-linear-gradient(135deg,var(--line-2) 0 6px,transparent 6px 12px);border-style:solid;color:var(--ink-3);font-weight:500;font-size:11.5px}
+.slot.q{box-shadow:inset 0 0 0 2px var(--clock)}
+.grid th.wk{font-family:var(--display);font-size:12px;letter-spacing:.06em;color:var(--ink-2);border-left:2px solid var(--line);text-align:left;padding:8px 10px 2px}
+.grid th.d1,.grid td.d1{border-left:2px solid var(--line)}
+.timer{font-family:var(--mono);font-size:22px;font-weight:600;line-height:1} .timer.low{color:var(--crit)} .timer.up{color:var(--crit)}
+.qbadge{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--clock);color:var(--clock-ink);border-radius:3px;padding:1px 6px;margin-left:8px;vertical-align:middle}
+.gate{max-width:420px;margin:40px auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px;display:flex;flex-direction:column;gap:14px}
+.gate h2{font-size:22px} .gate label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2)} .gate input,.gate select{padding:9px 10px;font-size:15px}
+.gate input.code{font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;font-size:18px;text-align:center}
+.gate .err{color:var(--crit);font-size:13px}
+.codes td.num{font-family:var(--mono)} .codes .c{font-family:var(--mono);letter-spacing:.08em;font-weight:600}
+.slot.layout{cursor:pointer} .slot.layout:hover{box-shadow:inset 0 0 0 2px var(--crit)}
+.days{display:flex;gap:4px;flex-wrap:wrap} .days label{display:inline-flex;align-items:center;gap:3px;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:1px 7px;cursor:pointer} .days label:has(input:checked){background:var(--crit-soft);border-color:var(--crit);color:var(--crit)} .days input{margin:0;width:12px;height:12px}
+.order{display:flex;flex-direction:column}
+.order .p{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line-2);font-size:14px}
+.order .p:last-child{border-bottom:0}
+.order .p .n{font-family:var(--mono);font-size:12px;color:var(--ink-3);text-align:right}
+.order .p.now{background:var(--clock-soft)} .order .p.now .n{color:var(--clock-ink);font-weight:600}
+.order .p.done{color:var(--ink-3)}
+.order .p .name{display:flex;flex-direction:column;min-width:0} .order .p .name small{color:var(--ink-3);font-size:11.5px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:1px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.crit{background:var(--crit-soft);color:var(--crit)} .pill.neutral{background:var(--line-2);color:var(--ink-2)} .pill.clock{background:var(--clock);color:var(--clock-ink)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.stat .v{font-family:var(--mono);font-size:22px;font-weight:600;line-height:1.1}
+.stat .s{font-size:12px;color:var(--ink-2)}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;padding:12px 14px;border-top:1px solid var(--line-2);background:var(--paper)}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2)}
+.form .actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+td input[type=number],td input[type=text]{width:92px;padding:3px 6px;font-family:var(--mono);font-size:13px} td input[type=text]{width:180px;font-family:var(--body)}
+.banner{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--surface);border-radius:var(--r);padding:10px 14px}
+.banner.err{border-left-color:var(--crit)}
+.empty{padding:40px 20px;text-align:center;color:var(--ink-2);display:flex;flex-direction:column;gap:10px;align-items:center}
+.log{font-size:13px;display:flex;flex-direction:column}
+.log div{padding:5px 0;border-bottom:1px solid var(--line-2);display:flex;gap:8px;justify-content:space-between}
+.log div:last-child{border-bottom:0}
+.note{font-size:12px;color:var(--ink-3);padding:8px 14px 12px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:var(--r);font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.show{opacity:1}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><h1 id="teamName">Team Supreme Draft</h1><small id="weekLabel">Shift draft board</small></div>
+    <nav class="tabs" id="tabs"><a href="#board" data-view="board">Board</a><a href="#roster" data-view="roster">Roster</a><a href="#weeks" data-view="weeks">Periods</a><a href="#settings" data-view="settings">Settings</a></nav>
+    <label class="me">I am <select id="meSel" aria-label="Who are you"><option value="">choose your name</option></select><span class="pill good" id="adminPill" hidden>admin</span></label>
+  </div>
+  <div id="main"><div class="empty"><h2>Loading the board…</h2></div></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+'use strict';
+const $=(s,el=document)=>el.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastT; const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);};
+const S={db:null,sb:null,authUser:null,gate:true,admin:false,uid:null,email:null,canWrite:true,readOnly:false,config:null,roster:[],weeks:{},weekId:null,view:'board',me:null,loaded:false,confirm:null,editRoster:false,editLayout:false};
+
+
+// ---------- helpers ----------
+const person=id=>S.roster.find(p=>p.id===id);
+const pname=id=>person(id)?.name||id||'—';
+const first=id=>{const n=pname(id).split(' ');return n.length>1?n[0]+' '+n[n.length-1][0]+'.':n[0];};
+const week=()=>S.weeks[S.weekId];
+const slotId=(loc,sh,d)=>`${loc}.${sh}.${d}`;
+function mondayOf(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x;}
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDate=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric'});};
+function buildTurns(cfg,roster){
+  const eligible=roster.filter(p=>p.active!==false).sort((a,b)=>b.bls-a.bls);
+  const ppr=perRound(cfg); const turns=[]; for(let r=0;r<ppr.length;r++){ const order=(cfg.snake&&r%2===1)?[...eligible].reverse():eligible; for(const p of order){ if((p.skipped||0)>r) continue; for(let k=1;k<=ppr[r];k++) turns.push({round:r+1,personId:p.id,pick:k,of:ppr[r]}); } }
+  return {turns,excluded:[]};
+}
+function perRound(cfg){ const a=Array.isArray(cfg.picksPerRound)&&cfg.picksPerRound.length?cfg.picksPerRound.map(n=>Math.max(1,+n||1)):Array(cfg.rounds||1).fill(1); return a; }
+const shiftsPerPerson=cfg=>perRound(cfg).reduce((a,b)=>a+b,0);
+function currentTurn(w){ if(!w||w.status!=='open') return -1; for(let i=0;i<w.turns.length;i++){ if(!w.picks[i]&&!w.passed[i]) return i; } return -1; }
+function picksBySlot(w){ const m={}; for(const i in w.picks) m[w.picks[i].slot]={turn:+i,personId:w.turns[i].personId,...w.picks[i]}; return m; }
+function countFor(w,pid){ let n=0; for(const i in w.picks) if(w.turns[i].personId===pid) n++; return n; }
+const isClosed=(w,slot)=>!!(w.blocked&&w.blocked[slot]);
+const addDays=(s,n)=>{ const [y,m,d]=s.split('-').map(Number); return iso(new Date(y,m-1,d+n)); };
+function periodDays(w){ if(w&&Array.isArray(w.days)&&w.days.length) return w.days; const cfg=S.config; return cfg.days.map((d,i)=>({key:d,label:d,week:1,date:w?addDays(w.weekOf,i):null})); }
+const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const weekdayOf=s=>{ const [y,m,d]=s.split('-').map(Number); return WD[new Date(y,m-1,d).getDay()]; };
+function makeDays(start,weeks){ const out=[]; for(let k=0;k<weeks;k++) for(let i=0;i<7;i++){ const date=addDays(start,k*7+i); const d=weekdayOf(date); out.push({key:`w${k+1}-${d}`,label:d,week:k+1,date}); } return out; }
+const fmtLong=s=>{ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); };
+const dayLabel=key=>key.replace(/^w\d+-/,'');
+const periodWeeks=w=>Math.max(1,...periodDays(w).map(d=>d.week||1));
+const periodEnd=w=>addDays(w.weekOf,periodWeeks(w)*7-1);
+const fmtRange=w=>`${fmtLong(w.weekOf)} – ${fmtLong(periodEnd(w))}`;
+const isOff=(pid,dayKey)=>!!(person(pid)?.offDays||[]).includes(dayLabel(dayKey));
+function dayTaken(w,pid,dayKey){ for(const i in w.picks){ if(w.turns[i].personId===pid&&w.picks[i].slot.split('.')[2]===dayKey) return true; } return false; }
+const qualifier=w=>w.qualifier||null;
+const locName=id=>(S.config.locations.find(l=>l.id===id)||{}).name||id;
+function qualifierState(w,t){ // {required:bool, satisfied:bool, mustNow:bool}
+  const q=qualifier(w); if(!q||t<0) return {required:false}; const turn=w.turns[t]; if(turn.round!==1) return {required:false}; const pid=turn.personId;
+  let have=0; for(const i in w.picks){ if(w.turns[i].personId===pid&&w.turns[i].round===1&&w.picks[i].slot.split('.')[0]===q) have++; }
+  let remaining=0; for(let i=t;i<w.turns.length;i++){ const x=w.turns[i]; if(x.round!==1) break; if(x.personId===pid&&!w.picks[i]&&!w.passed[i]) remaining++; }
+  const mustNow=have===0&&remaining<=1; return {required:true,satisfied:have>0,mustNow,store:q};
+}
+function openQualifierCells(w,pid){ const q=qualifier(w); if(!q) return 0; const bySlot=picksBySlot(w); let n=0; for(const sh of S.config.shifts) for(const d of periodDays(w)){ const id=slotId(q,sh.id,d.key); if(!bySlot[id]&&!isClosed(w,id)&&!isOff(pid,d.key)&&!(S.config.maxPerDay&&dayTaken(w,pid,d.key))) n++; } return n; }
+const clockMs=()=>Math.max(0,(+S.config.clockMinutes||0))*60000;
+function clockLeft(w){ if(!clockMs()||!w.turnStartedAt) return null; return clockMs()-(Date.now()-Date.parse(w.turnStartedAt)); }
+const stamp=nw=>{ nw.turnStartedAt=new Date().toISOString(); return nw; };
+
+// ---------- Supabase data layer (same doc/collection shape the board was written against) ----------
+function makeDB(sb){
+  const subs={}, cache={}, clone=x=>JSON.parse(JSON.stringify(x));
+  const emit=col=>{ const docs=Object.entries(cache[col]||{}).map(([id,d])=>({id,exists:true,data:()=>clone(d)})); (subs[col]||[]).forEach(fn=>fn({docs})); };
+  const load=async col=>{ const {data,error}=await sb.from('docs').select('id,data').eq('collection',col); if(error) throw error; cache[col]={}; for(const r of data) cache[col][r.id]=r.data; };
+  sb.channel('docs-live').on('postgres_changes',{event:'*',schema:'public',table:'docs'},p=>{ const row=p.eventType==='DELETE'?p.old:p.new; if(!row||!row.collection) { Object.keys(subs).forEach(c=>load(c).then(()=>emit(c)).catch(()=>{})); return; } const col=row.collection; cache[col]||={}; if(p.eventType==='DELETE') delete cache[col][row.id]; else cache[col][row.id]=p.new.data; emit(col); }).subscribe();
+  const fail=e=>{ const err=new Error(e.message||String(e)); err.code=e.code==='42501'||/row-level security|permission/i.test(e.message||'')?'invalid_argument':(e.code||'unavailable'); throw err; };
+  return {
+    doc:path=>{ const [col,id]=path.split('/'); return {
+      get:async()=>{ const {data,error}=await sb.from('docs').select('data').eq('collection',col).eq('id',id).maybeSingle(); if(error) fail(error); return {exists:!!data,data:()=>data?clone(data.data):undefined}; },
+      set:async d=>{ const {error}=await sb.from('docs').upsert({collection:col,id,data:d,updated_at:new Date().toISOString()},{onConflict:'collection,id'}); if(error) fail(error); cache[col]||={}; cache[col][id]=clone(d); emit(col); },
+      delete:async()=>{ const {error}=await sb.from('docs').delete().eq('collection',col).eq('id',id); if(error) fail(error); if(cache[col]) delete cache[col][id]; emit(col); } }; },
+    collection:col=>({ onSnapshot:(fn,err)=>{ (subs[col]||(subs[col]=[])).push(fn); load(col).then(()=>emit(col)).catch(e=>err&&err(e)); return ()=>{ subs[col]=(subs[col]||[]).filter(f=>f!==fn); }; } }),
+    reload:async()=>{ for(const c of Object.keys(subs)){ await load(c); emit(c); } }
+  };
+}
+
+// ---------- boot ----------
+async function boot(){
+  const cfg=window.BOARD_CONFIG||{};
+  if(!window.supabase||!cfg.SUPABASE_URL||/YOUR-PROJECT/.test(cfg.SUPABASE_URL)){ $('#main').innerHTML='<div class="empty"><h2>Board not configured</h2><p class="muted">Open index.html and paste your Supabase project URL and anon key into the BOARD_CONFIG block at the top. The setup guide walks through it.</p></div>'; return; }
+  const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY); S.sb=sb;
+  const {data:{session}}=await sb.auth.getSession(); S.authUser=session?.user||null;
+  sb.auth.onAuthStateChange((_e,sess)=>{ const u=sess?.user||null; const changed=(u?.id||null)!==(S.authUser?.id||null); S.authUser=u; if(changed){ if(u) startData(); else { S.loaded=false; S.gate=true; render(); } } });
+  if(S.authUser) startData(); else { S.gate=true; render(); }
+}
+function startData(){
+  S.uid=S.authUser.id; S.email=(S.authUser.email||'').toLowerCase(); S.gate=false; S.db=makeDB(S.sb); const db=S.db;
+  let a=false,b=false; const timer=setTimeout(()=>{ if(!S.loaded) $('#main').innerHTML='<div class="empty"><h2>Still waiting on the database…</h2><p class="muted">Check the Supabase URL and key, then reload.</p></div>'; },12000);
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  db.collection('draft').onSnapshot(snap=>{ a=true; for(const d of snap.docs){ if(d.id==='config') S.config=clone(d.data()); if(d.id==='roster') S.roster=clone(d.data().items||[]); } if(b) ready(timer); }, e=>{ clearTimeout(timer); $('#main').innerHTML=`<div class="banner err">Could not read the database (${esc(e.code||e.message)}). If you just signed in, your email may not be on the roster.</div><p style="text-align:center"><button class="btn" onclick="location.reload()">Reload</button></p>`; });
+  db.collection('weeks').onSnapshot(snap=>{ b=true; const ws={}; for(const d of snap.docs) ws[d.id]=clone(d.data()); S.weeks=ws;
+    const openId=Object.keys(ws).sort().find(i=>ws[i].status==='open'); if(openId&&!S.pinned&&S.weekId!==openId){ const was=S.weekId; S.weekId=openId; S.scrolledOnce=false; if(S.loaded&&was) toast('Now showing the current draft: '+fmtRange(ws[openId])); }
+    if(S.weekId&&!ws[S.weekId]){ S.weekId=openId||Object.keys(ws).sort().pop()||null; S.pinned=false; }
+    if(a) ready(timer); });
+}
+function ready(timer){ clearTimeout(timer); S.loaded=true; if(!S.weekId||!S.weeks[S.weekId]){ const ids=Object.keys(S.weeks).sort(); S.weekId=ids.find(i=>S.weeks[i].status==='open')||ids[ids.length-1]||null; } if(S.view!=='board'||!S.editLayout) render(); }
+async function write(fn){ if(S.readOnly||!S.db){ toast('View only'); return false; } try{ await fn(); return true; }catch(e){ console.warn(e); if(e&&e.code==='invalid_argument'&&!S.canWrite){ S.readOnly=true; toast('You can view but not change the board'); } else toast('Save failed: '+(e.message||e.code||e)); return false; } }
+const saveWeek=w=>write(()=>S.db.doc('weeks/'+S.weekId).set(w));
+const saveRoster=()=>write(()=>S.db.doc('draft/roster').set({items:S.roster}));
+const saveConfig=()=>write(()=>S.db.doc('draft/config').set(S.config));
+
+// ---------- actions ----------
+async function claim(slot){
+  const w=week(); const t=currentTurn(w); if(t<0) return; const pid=w.turns[t].personId;
+  if(!(S.admin||S.me===pid)){ toast(`It is ${first(pid)}'s pick`); return; }
+  const fresh=JSON.parse(JSON.stringify((await S.db.doc('weeks/'+S.weekId).get()).data()||w)); if(Object.values(fresh.picks).some(p=>p.slot===slot)){ toast('Someone just took that shift'); return; }
+  if(currentTurn(fresh)!==t){ toast('The turn moved on; try again'); return; }
+  const day=slot.split('.')[2]; if(isClosed(fresh,slot)){ toast('That shift is closed this period'); return; } if(isOff(pid,day)){ toast(`${first(pid)} is marked off on ${dayLabel(day)}`); return; } if(S.config.maxPerDay&&dayTaken(fresh,pid,day)){ toast(`${first(pid)} already has a ${dayLabel(day)} shift`); return; }
+  const qs=qualifierState(fresh,t); if(qs.required&&qs.mustNow&&slot.split('.')[0]!==qs.store&&openQualifierCells(fresh,pid)>0){ toast(`This pick must be at ${locName(qs.store)}, the qualifier store`); return; }
+  const nw=stamp(JSON.parse(JSON.stringify(fresh))); nw.picks[t]={slot,at:new Date().toISOString(),by:S.me||'admin'}; nw.log=(nw.log||[]).concat([{at:nw.picks[t].at,text:`${pname(pid)} took ${slotText(slot)} (round ${w.turns[t].round})`}]).slice(-200);
+  if(currentTurn(nw)<0) nw.status='complete';
+  S.weeks[S.weekId]=nw; if(await saveWeek(nw)) toast(`${first(pid)}: ${slotText(slot)}`); render();
+}
+const slotText=slot=>{ const [l,sid,d]=slot.split('.'); return `${l} ${dayLabel(d)}${/^w2/.test(d)?' (wk 2)':''} ${S.config.shifts.find(x=>x.id===sid)?.weekday||sid}`; };
+async function pass(auto){
+  const w=week(); const t=currentTurn(w); if(t<0) return; const pid=w.turns[t].personId; if(!(S.admin||S.me===pid||auto)) return;
+  const nw=stamp(JSON.parse(JSON.stringify(w))); nw.passed[t]=true; nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:`${pname(pid)} ${auto===true?'ran out of time and was passed':'passed'} (round ${w.turns[t].round})`}]); if(currentTurn(nw)<0) nw.status='complete';
+  S.weeks[S.weekId]=nw; if(await saveWeek(nw)) toast('Passed'); render();
+}
+async function undo(){
+  const w=week(); const idx=Object.keys(w.picks).map(Number).concat(Object.keys(w.passed).map(Number)); if(!idx.length) return; const last=Math.max(...idx);
+  const nw=stamp(JSON.parse(JSON.stringify(w))); const was=nw.picks[last]?`pick ${slotText(nw.picks[last].slot)}`:'pass'; delete nw.picks[last]; delete nw.passed[last]; nw.status='open'; nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:`Undid ${pname(w.turns[last].personId)}'s ${was}`}]);
+  S.weeks[S.weekId]=nw; if(await saveWeek(nw)) toast('Undone'); render();
+}
+async function toggleClosed(slot){
+  const w=week(); if(!S.admin||!w) return; if(Object.values(w.picks).some(p=>p.slot===slot)){ toast('Undo the pick in that cell first'); return; }
+  const nw=JSON.parse(JSON.stringify(w)); nw.blocked ||= {}; if(nw.blocked[slot]) delete nw.blocked[slot]; else nw.blocked[slot]=true;
+  S.weeks[S.weekId]=nw; await saveWeek(nw); render();
+}
+async function saveLayoutDefault(){ const w=week(); const def={}; for(const k in (w.blocked||{})){ const [l,sid,d]=k.split('.'); def[slotId(l,sid,dayLabel(d))]=true; } S.config.defaultBlocked=def; if(await saveConfig()) toast(`Saved: ${Object.keys(S.config.defaultBlocked).length} closed cells will apply to new weeks`); }
+async function rebuildOrder(){
+  const w=week(); if(!w||!S.admin) return; if(Object.keys(w.picks).length||Object.keys(w.passed).length){ toast('Reset the board first, then rebuild the order'); return; }
+  const {turns}=buildTurns(S.config,S.roster); const nw=stamp(JSON.parse(JSON.stringify(w))); nw.turns=turns; nw.snapshot=S.roster.map(p=>({id:p.id,name:p.name,bls:p.bls,skipped:p.skipped||0})); nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:`Draft order rebuilt from the roster (${turns.length} picks)`}]);
+  S.weeks[S.weekId]=nw; if(await saveWeek(nw)) toast('Order rebuilt from roster'); render();
+}
+async function setQualifier(store){ const w=week(); if(!w||!S.admin) return; const nw=JSON.parse(JSON.stringify(w)); nw.qualifier=store||null; S.config.qualifierStore=store||null; S.weeks[S.weekId]=nw; nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:store?`Qualifier store set to ${locName(store)}`:'Qualifier store cleared'}]); if(await saveWeek(nw)) await saveConfig(); render(); }
+async function setClock(mins){ if(!S.admin) return; S.config.clockMinutes=Math.max(0,+mins||0); if(await saveConfig()) toast(S.config.clockMinutes?`Clock set to ${S.config.clockMinutes} min per pick`:'Clock turned off'); render(); }
+async function restartClock(){ const w=week(); if(!w||!S.admin) return; const nw=stamp(JSON.parse(JSON.stringify(w))); S.weeks[S.weekId]=nw; if(await saveWeek(nw)) toast('Clock restarted'); render(); }
+async function movePeriod(newStart){
+  const w=week(); if(!w||!S.admin||!newStart||newStart===w.weekOf) return; if(S.weeks[newStart]){ toast('A period already starts on that date'); return; }
+  const oldId=w.weekOf; const nw=JSON.parse(JSON.stringify(w)); nw.weekOf=newStart; const weeks=periodWeeks(w); const oldDays=periodDays(w); const newDays=makeDays(newStart,weeks);
+  // remap slot keys by position (same column index keeps its picks and closures)
+  const map={}; oldDays.forEach((d,i)=>{ map[d.key]=newDays[i].key; }); const remap=slot=>{ const [l,sid,d]=slot.split('.'); return slotId(l,sid,map[d]||d); };
+  for(const i in nw.picks) nw.picks[i].slot=remap(nw.picks[i].slot); const bl={}; for(const k in (nw.blocked||{})) bl[remap(k)]=true; nw.blocked=bl; nw.days=newDays;
+  nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:`Period moved to start ${fmtLong(newStart)}`}]);
+  if(!await write(()=>S.db.doc('weeks/'+newStart).set(nw))) return; S.weeks[newStart]=nw; delete S.weeks[oldId]; S.weekId=newStart; S.pinned=false;
+  await write(()=>S.db.doc('weeks/'+oldId).delete()); toast('Period now starts '+fmtLong(newStart)); render();
+}
+async function resetWeek(){
+  const w=week(); if(!w||!S.admin) return;
+  const nw=stamp(JSON.parse(JSON.stringify(w))); const n=Object.keys(nw.picks).length; nw.picks={}; nw.passed={}; nw.status='open'; nw.log=(nw.log||[]).concat([{at:new Date().toISOString(),text:`Board reset: ${n} pick${n===1?'':'s'} cleared`}]);
+  S.weeks[S.weekId]=nw; S.confirm=null; if(await saveWeek(nw)) toast('All shifts cleared'); render();
+}
+// Minimal PDF writer: Helvetica text, rectangles, lines; letter landscape.
+const HW=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+function MiniPDF(w,h){ this.w=w; this.h=h; this.pages=[]; this.cur=null; }
+MiniPDF.prototype={
+  ascii(t){ return String(t).replace(/[–—]/g,'-').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/·/g,'-').replace(/[^\x20-\x7E]/g,'?'); },
+  width(t,size){ let w=0; for(const ch of this.ascii(t)) w+=(HW[ch.charCodeAt(0)-32]||556); return w*size/1000; },
+  page(){ this.cur=[]; this.pages.push(this.cur); return this; },
+  col(c){ return c.map(v=>(v/255).toFixed(3)).join(' '); },
+  text(x,y,t,o={}){ const size=o.size||9, font=o.bold?'F2':'F1'; let s=this.ascii(t); const max=o.maxWidth; if(max){ while(s.length>1&&this.width(s,size)>max) s=s.slice(0,-2)+'…'.replace('…','.'); }
+    const tw=this.width(s,size); let X=x; if(o.align==='center') X=x-tw/2; else if(o.align==='right') X=x-tw; const Y=this.h-y;
+    this.cur.push(`BT /${font} ${size} Tf ${this.col(o.color||[0,0,0])} rg ${X.toFixed(2)} ${Y.toFixed(2)} Td (${s.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}) Tj ET`); },
+  rect(x,y,w,h,o={}){ const Y=this.h-y-h; const ops=[]; if(o.fill) ops.push(`${this.col(o.fill)} rg`); if(o.stroke) ops.push(`${this.col(o.stroke)} RG ${o.lw||0.5} w`); this.cur.push(`${ops.join(' ')} ${x.toFixed(2)} ${Y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${o.fill&&o.stroke?'B':o.fill?'f':'S'}`); },
+  line(x1,y1,x2,y2,c,lw){ this.cur.push(`${this.col(c||[0,0,0])} RG ${lw||0.5} w ${x1.toFixed(2)} ${(this.h-y1).toFixed(2)} m ${x2.toFixed(2)} ${(this.h-y2).toFixed(2)} l S`); },
+  blob(){ const objs=[]; const add=o=>{ objs.push(o); return objs.length; };
+    const font1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'); const font2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+    const pagesIdx=objs.length+1+this.pages.length*2; const kids=[];
+    for(const p of this.pages){ const stream=p.join('\n'); const c=add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`); const pg=add(`<< /Type /Page /Parent ${pagesIdx} 0 R /MediaBox [0 0 ${this.w} ${this.h}] /Contents ${c} 0 R /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> >>`); kids.push(pg+' 0 R'); }
+    const pages=add(`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`); const cat=add(`<< /Type /Catalog /Pages ${pages} 0 R >>`);
+    let out='%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'; const offs=[]; objs.forEach((o,i)=>{ offs.push(out.length); out+=`${i+1} 0 obj\n${o}\nendobj\n`; });
+    const xref=out.length; out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`; for(const o of offs) out+=String(o).padStart(10,'0')+' 00000 n \n'; out+=`trailer\n<< /Size ${objs.length+1} /Root ${cat} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const bytes=new Uint8Array(out.length); for(let i=0;i<out.length;i++) bytes[i]=out.charCodeAt(i)&255; return new Blob([bytes],{type:'application/pdf'}); }
+};
+function buildPdf(){
+  const w=week(); const cfg=S.config; const bySlot=picksBySlot(w); const W=792,H=612,M=36; const pdf=new MiniPDF(W,H).page();
+  const ink=[27,26,23], mute=[110,108,100], line=[200,198,190], locCol={AW:[14,124,134],CH:[110,68,168],WR:[184,106,11]}, locSoft={AW:[214,238,240],CH:[231,221,245],WR:[247,230,204]};
+  const nW=periodWeeks(w); const allDays=periodDays(w);
+  const timeW=96, cellW=(W-2*M-timeW)/cfg.days.length, rowH=22; let y;
+  for(let wk=1;wk<=nW;wk++){ if(wk>1) pdf.page(); y=M; const days=allDays.filter(d=>(d.week||1)===wk);
+    pdf.text(M,y+6,`${cfg.teamName} - shift draft, ${nW>1?`week ${wk} of ${nW}, `:''}week of ${fmtDate(days[0].date||w.weekOf)}`,{size:18,bold:true,color:ink});
+    pdf.text(M,y+22,`${Object.keys(w.picks).length} of ${w.turns.length} picks - ${w.status}${qualifier(w)?' - qualifier store '+locName(qualifier(w)):''} - saved ${new Date().toLocaleString('en-US')}`,{size:9,color:mute}); y+=40;
+    for(const loc of cfg.locations){
+      if(y+rowH*(cfg.shifts.length+1)+30>H-M){ pdf.page(); y=M; }
+      pdf.text(M,y+12,loc.name+(qualifier(w)===loc.id?'  (qualifier)':''),{size:12,bold:true,color:locCol[loc.id]||ink}); y+=18;
+      days.forEach((d,i)=>pdf.text(M+timeW+i*cellW+cellW/2,y+10,d.label.toUpperCase()+(d.date?' '+(+d.date.slice(8)):''),{size:8,bold:true,color:mute,align:'center'})); y+=14;
+      for(const sh of cfg.shifts){ pdf.line(M,y,W-M,y,line);
+        pdf.text(M,y+9,sh.weekday,{size:8,color:ink}); pdf.text(M,y+17,'Sun '+sh.sunday,{size:6.5,color:mute});
+        days.forEach((d,i)=>{ const id=slotId(loc.id,sh.id,d.key); const p=bySlot[id]; const x=M+timeW+i*cellW; if(p){ pdf.rect(x+2,y+2,cellW-4,rowH-4,{fill:locSoft[loc.id]||[235,235,235],stroke:locCol[loc.id]||ink}); pdf.text(x+cellW/2,y+rowH/2+3,pname(p.personId),{size:8.5,bold:true,color:ink,align:'center',maxWidth:cellW-8}); } else if(isClosed(w,id)){ pdf.rect(x+2,y+2,cellW-4,rowH-4,{fill:[232,231,226],stroke:line}); pdf.text(x+cellW/2,y+rowH/2+3,'closed',{size:7,color:mute,align:'center'}); } else pdf.rect(x+2,y+2,cellW-4,rowH-4,{stroke:line}); });
+        y+=rowH; }
+      pdf.line(M,y,W-M,y,line); y+=16; } }
+  pdf.page(); y=M; pdf.text(M,y+6,'Shifts by person',{size:14,bold:true,color:ink}); y+=24;
+  const people=[...new Set(w.turns.map(t=>t.personId))]; const colW=(W-2*M)/2; let col=0, y0=y;
+  for(const pid of people){ const mine=Object.values(bySlot).filter(p=>p.personId===pid).sort((a,b)=>a.turn-b.turn).map(p=>{ const [l,sid,d]=p.slot.split('.'); const sh=cfg.shifts.find(x=>x.id===sid); const dl=dayLabel(d); return `${nW>1?'wk'+(d.match(/^w(\d)/)?.[1]||1)+' ':''}${dl} ${l} ${dl==='Sun'?sh.sunday:sh.weekday}`; });
+    if(y>H-M-30){ col++; y=y0; if(col>1){ pdf.page(); y=M; y0=y; col=0; } } const x=M+col*colW;
+    pdf.text(x,y+8,`${pname(pid)}  (${mine.length})`,{size:9.5,bold:true,color:ink});
+    const lines=[]; let cur=''; for(const m of (mine.length?mine:['no shifts picked'])){ const t=cur?cur+'  -  '+m:m; if(pdf.width(t,8)>colW-20&&cur){ lines.push(cur); cur=m; } else cur=t; } if(cur) lines.push(cur);
+    lines.forEach((l,i)=>pdf.text(x,y+20+i*11,l,{size:8,color:mute})); y+=22+lines.length*11; }
+  return pdf.blob();
+}
+const pdfName=()=>`${(S.config.teamName||'draft').replace(/[^\w]+/g,'-')}-draft-${S.weekId}.pdf`;
+async function savePdf(){
+  let blob; try{ blob=buildPdf(); }catch(e){ toast('Could not build the PDF: '+(e.message||e)); return; }
+  try{ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=pdfName(); document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000); toast('PDF saved'); }
+  catch(e){ previewPdf(blob,true); }
+}
+let pdfUrl=null;
+function previewPdf(blob,fallback){
+  blob=blob||buildPdf(); if(pdfUrl) URL.revokeObjectURL(pdfUrl); pdfUrl=URL.createObjectURL(blob);
+  let p=$('#pdfPreview'); if(!p){ p=document.createElement('div'); p.className='panel'; p.id='pdfPreview'; $('#main').insertBefore(p,$('#main').querySelector('.layout')); }
+  p.innerHTML=`<header><h2>PDF preview — ${esc(pdfName())}</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn small" href="${pdfUrl}" target="_blank" rel="noopener">Open in new tab</a><button class="btn small" id="pdfClose">Close</button></div></header><div class="body" style="padding:0"><iframe src="${pdfUrl}" title="Draft PDF" style="width:100%;height:70vh;border:0;background:#fff"></iframe></div><p class="note">${fallback?'Your browser blocked the direct download, so the PDF is shown here instead. ':''}Use the download or print icon in the viewer's toolbar to keep a copy.</p>`;
+  $('#pdfClose').addEventListener('click',()=>{ p.remove(); }); p.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function startWeek(dateStr,weeks){
+  const id=dateStr; if(S.weeks[id]){ toast('A period starting that day already exists'); S.weekId=id; render(); return; }
+  weeks=weeks===2?2:1; const {turns,excluded}=buildTurns(S.config,S.roster); const days=makeDays(id,weeks);
+  const blocked={}; for(const k in (S.config.defaultBlocked||{})){ const [l,sid,d]=k.split('.'); for(const day of days) if(day.label===dayLabel(d)) blocked[slotId(l,sid,day.key)]=true; }
+  const w={weekOf:id,weeks,days,status:'open',createdAt:new Date().toISOString(),turnStartedAt:new Date().toISOString(),qualifier:S.config.qualifierStore||null,turns,excluded,picks:{},passed:{},blocked,log:[{at:new Date().toISOString(),text:`Draft opened for ${weeks===2?'two weeks':'one week'}: ${turns.length} picks over ${perRound(S.config).length} rounds (${perRound(S.config).join(' + ')} shifts each)`}],snapshot:S.roster.map(p=>({id:p.id,name:p.name,bls:p.bls,skipped:p.skipped||0}))};
+  for(const o of Object.values(S.weeks)) if(o.status==='open'){ o.status='closed'; await write(()=>S.db.doc('weeks/'+o.weekOf).set(o)); }
+  S.weeks[id]=w; S.weekId=id; S.pinned=false; S.scrolledOnce=false; if(await write(()=>S.db.doc('weeks/'+id).set(w))) toast('Draft opened: '+fmtRange(w)); location.hash='#board'; render();
+}
+
+// ---------- render ----------
+function route(){ if(S.editRoster&&S.view==='roster'){ toast('Roster edits not saved. Press Save changes.'); S.editRoster=false; } const h=(location.hash||'#board').slice(1); S.view=['board','roster','weeks','settings'].includes(h)?h:'board'; if(!S.admin) S.view='board'; if(S.loaded) render(); }
+window.addEventListener('hashchange',route);
+const fmtLeft=ms=>ms==null?'':ms<=0?"Time's up":`${Math.floor(ms/60000)}:${String(Math.floor((ms%60000)/1000)).padStart(2,'0')}`;
+// ---------- sign-in (Supabase email codes) ----------
+const normEmail=e=>String(e||'').trim().toLowerCase();
+const boardUrl=()=>location.origin+location.pathname;
+async function requestCode(email){ const {error}=await S.sb.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:boardUrl()}}); return error?error.message:null; }
+async function verifyCode(email,token){ const {error}=await S.sb.auth.verifyOtp({email,token:String(token||'').replace(/\s+/g,''),type:'email'}); return error?error.message:null; }
+async function signOut(){ await S.sb.auth.signOut(); S.me=null; S.loaded=false; location.hash='#board'; }
+async function issueCodes(people){ const out=[]; for(const p of people){ if(!p.email){ out.push({p,sent:false,error:'no email'}); continue; } const err=await requestCode(normEmail(p.email)); out.push({p,sent:!err,error:err}); } return out; }
+function refreshAdmin(){ const me=S.roster.find(p=>normEmail(p.email)===S.email&&p.active!==false)||null; S.me=me?me.id:null; S.admin=!!(me&&me.isAdmin); S.owner=!!(S.config&&normEmail(S.config.ownerEmail)===S.email); if(S.owner) S.admin=true; }
+function render(){
+  $('#teamName').textContent=(S.config?.teamName||'Team')+' Draft';
+  const m=$('#main'); m.innerHTML='';
+  if(S.gate){ document.querySelectorAll('#tabs a').forEach(a=>a.hidden=true); $('.me').hidden=true; renderGate(); return; }
+  if(!S.config){ document.querySelectorAll('#tabs a').forEach(a=>a.hidden=true); $('.me').hidden=true; m.innerHTML=`<div class="empty"><h2>Nothing to show for ${esc(S.email)}</h2><p class="muted">Either this email is not on the team roster yet, or the database has not been set up. If you are a teammate, ask an admin to add your email on the Roster tab and sign in again.</p><button class="btn" id="signOut2">Sign out</button></div>`; $('#signOut2').onclick=signOut; return; }
+  refreshAdmin();
+  const locked=!S.admin; if(locked&&S.view!=='board'){ S.view='board'; }
+  document.querySelectorAll('#tabs a').forEach(a=>{ a.hidden=locked&&a.dataset.view!=='board'; if(a.dataset.view===S.view) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
+  const meBox=$('.me'); $('#meSel').hidden=true; meBox.hidden=false;
+  let fixed=$('#meFixed'); if(!fixed){ fixed=document.createElement('span'); fixed.id='meFixed'; meBox.insertBefore(fixed,$('#meSel')); }
+  fixed.innerHTML=`<b>${S.me?esc(pname(S.me)):esc(S.email)}</b> <button class="btn small" id="signOut">Sign out</button>`; $('#signOut').onclick=signOut;
+  const ap=$('#adminPill'); ap.hidden=!S.admin; ap.textContent=S.owner?'owner':'admin';
+  if(!S.me){ m.innerHTML=`<div class="empty"><h2>You're signed in, but not on the roster</h2><p class="muted">${esc(S.email)} doesn't match any active person's email. Ask an admin to add it on the Roster tab, then sign in again.</p></div>`; return; }
+  ({board:renderBoard,roster:renderRoster,weeks:renderWeeks,settings:renderSettings})[S.view]();
+}
+function renderGate(){
+  const m=$('#main'); let remembered=''; try{ remembered=localStorage.getItem('draft.email')||''; }catch(e){}
+  const step=S.gateStep||'email';
+  m.innerHTML=`<form class="gate" id="gateForm"><div><div class="eyebrow">Shift draft</div><h2>Sign in to the draft</h2><p class="muted" style="margin:6px 0 0">${step==='email'?'Enter the email on the roster and we will send you a one-time sign-in email.':`We sent a sign-in email to <b>${esc(S.gateEmail)}</b>. Open it and click the link; you will come straight back here signed in. If the email shows a code instead, enter it below. It is good for 24 hours and works once.`}</p></div>
+    ${step==='email'?`<label>Your email<input type="email" id="gEmail" value="${esc(remembered)}" autocomplete="email" required placeholder="name@company.com"></label>`:`<label>Login code (if your email has one)<input class="code" id="gCode" autocomplete="one-time-code" inputmode="numeric" maxlength="8" placeholder="12345678"></label>`}
+    <div class="err" id="gErr" hidden></div>
+    <button class="btn primary" type="submit" id="gBtn">${step==='email'?'Email me a code':'Sign in'}</button>
+    ${step==='email'?'':'<button class="btn" type="button" id="gBack">Use a different email</button>'}
+    <p class="faint" style="margin:0;font-size:12px">Only people on the team roster can get in. No email after a minute? Check spam, or ask the admin to resend from the Roster tab.</p></form>`;
+  $('#gBack')?.addEventListener('click',()=>{ S.gateStep='email'; render(); });
+  $('#gateForm').addEventListener('submit',async e=>{ e.preventDefault(); const err=$('#gErr'); const btn=$('#gBtn'); btn.disabled=true; btn.textContent='Working…';
+    if(step==='email'){ const email=normEmail($('#gEmail').value); if(!email){ btn.disabled=false; btn.textContent='Email me a code'; return; } const msg=await requestCode(email); if(msg){ err.textContent=msg; err.hidden=false; btn.disabled=false; btn.textContent='Email me a code'; return; } try{ localStorage.setItem('draft.email',email); }catch(x){} S.gateEmail=email; S.gateStep='code'; render(); return; }
+    const codeVal=$('#gCode').value.trim(); if(!codeVal){ err.textContent='Click the link in the email, or enter the code if there is one.'; err.hidden=false; btn.disabled=false; btn.textContent='Sign in'; return; } const msg=await verifyCode(S.gateEmail,codeVal); if(msg){ err.textContent=/expired|invalid/i.test(msg)?'That code is wrong or has expired. Request a new one.':msg; err.hidden=false; btn.disabled=false; btn.textContent='Sign in'; return; }
+    S.gateStep='email'; toast('Signed in'); });
+}
+
+function renderBoard(){
+  const m=$('#main'); const w=week(); const cfg=S.config;
+  $('#weekLabel').textContent=w?`${fmtRange(w)} · ${w.status}`:'No draft open';
+  if(!w){ m.innerHTML=`<div class="empty"><h2>No draft period yet</h2><p class="muted">Open one from the Periods tab to start picking.</p>${S.admin?'<a class="btn primary" href="#weeks">Go to Periods</a>':''}</div>`; return; }
+  const t=currentTurn(w); const pid=t>=0?w.turns[t].personId:null; const bySlot=picksBySlot(w); const isMine=pid&&pid===S.me; const canAct=t>=0&&!S.readOnly&&(S.admin||isMine);
+  const picked=Object.keys(w.picks).length, totalSlots=cfg.locations.length*cfg.shifts.length*periodDays(w).length;
+  const days=periodDays(w); const qs=t>=0?qualifierState(w,t):{required:false}; const mustQ=qs.required&&qs.mustNow&&openQualifierCells(w,pid)>0; const left=w.status==='open'?clockLeft(w):null;
+  const lastIdx=Math.max(-1,...Object.keys(w.picks).map(Number)); const latestSlot=lastIdx>=0?w.picks[lastIdx].slot:null;
+  const nextUp=t>=0?w.turns.slice(t+1).filter((x,i,arr)=>!w.picks[t+1+i]&&!w.passed[t+1+i]).slice(0,3):[];
+  const clockCls=w.status==='complete'?'done':w.status==='closed'?'closed':'';
+  m.insertAdjacentHTML('beforeend',`
+  <div class="clock ${clockCls}">
+    <div><div class="eyebrow">${w.status==='open'?'On the clock':w.status==='complete'?'Draft complete':'Week closed'}</div>
+      <div class="who">${w.status==='open'?esc(pname(pid))+(isMine?' (you)':''):w.status==='complete'?'Every turn is resolved':'This week is read-only'}</div>
+      <div class="meta">${w.status==='open'?`<span>Round ${w.turns[t].round} of ${perRound(cfg).length}${(w.turns[t].of||1)>1?` · shift ${w.turns[t].pick} of ${w.turns[t].of} this turn`:''}</span><span>Pick ${t+1} of ${w.turns.length}</span><span>${first(pid)} has ${countFor(w,pid)} shift${countFor(w,pid)===1?'':'s'}</span>${nextUp.length?`<span>Next: ${nextUp.map(x=>first(x.personId)).join(', ')}</span>`:''}`:`<span>${picked} of ${w.turns.length} picks made</span>`}</div>
+      ${w.status==='open'&&qs.required?`<div class="meta" style="margin-top:6px"><span class="pill ${mustQ?'crit':qs.satisfied?'good':'warn'}">${qs.satisfied?`${locName(qs.store)} qualifier done`:mustQ?`This pick must be at ${locName(qs.store)} (qualifier store)`:`Round 1: one of ${first(pid)}'s picks must be at ${locName(qs.store)}`}</span></div>`:''}</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${w.status==='open'&&clockMs()?`<div style="display:flex;align-items:center;gap:10px"><span class="eyebrow">Clock</span><span class="timer ${left!=null&&left<=0?'up':left!=null&&left<60000?'low':''}" id="timer">${fmtLeft(left)}</span>${S.admin&&!S.readOnly?`<button class="btn small" id="clockRestart" title="Restart the countdown for this pick">Restart</button>`:''}</div>`:''}${S.admin&&!S.readOnly?`<form class="confirm" id="clockForm"><label class="faint">Minutes per pick <input type="number" id="clockMins" min="0" max="120" value="${+cfg.clockMinutes||0}" style="width:64px;padding:3px 6px"></label><button class="btn small" type="submit">Set</button>${cfg.autoPass?'<span class="pill neutral">auto-pass on</span>':''}</form>`:''}</div>
+    <div class="acts">${canAct?`<span class="pill clock">${isMine?'Your pick: tap an open shift':'Admin: pick for '+first(pid)}</span><button class="btn small" id="passBtn">Pass</button>`:''}${S.admin&&!S.readOnly&&(picked||Object.keys(w.passed).length)?'<button class="btn small" id="undoBtn">Undo last</button>':''}${!S.me&&w.status==='open'?'<span class="pill warn">Choose your name above to pick</span>':''}<button class="btn small" id="pdfBtn">Save PDF</button><button class="btn small" id="pdfPrev">Preview PDF</button>${S.admin&&!S.readOnly&&w.status==='open'?'<button class="btn small" id="rebuildBtn" title="Rebuild the draft order from the roster ranking">Rebuild order</button>':''}${S.admin&&!S.readOnly?(S.confirm==='reset'?`<span class="confirm">Clear all ${picked} picks? <button class="btn small danger" id="resetYes">Yes, clear the board</button><button class="btn small" id="resetNo">Keep</button></span>`:'<button class="btn small danger" id="resetBtn">Reset week</button>'):''}</div>
+  </div>
+  <div class="stats"><div class="stat"><span class="eyebrow">Shifts picked</span><span class="v">${picked}<span class="muted" style="font-size:13px"> / ${w.turns.length}</span></span><span class="s">${totalSlots-picked-Object.keys(w.blocked||{}).length} open cells remain${Object.keys(w.blocked||{}).length?` · ${Object.keys(w.blocked||{}).length} closed`:''}</span></div><div class="stat"><span class="eyebrow">Drafting</span><span class="v">${new Set(w.turns.map(x=>x.personId)).size}</span><span class="s">${w.excluded?.length?w.excluded.length+' sitting out':'everyone eligible'}</span></div><div class="stat"><span class="eyebrow">Rounds</span><span class="v">${perRound(cfg).length}</span><span class="s">${perRound(cfg).join(' + ')} shifts per person · ${cfg.snake?'snake order':'same order each round'} · max ${cfg.maxPerDay||'∞'} per day</span></div></div>
+  <div class="layout">
+    <div class="panel"><header><h2>${fmtRange(w)}</h2><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${S.admin&&!S.readOnly&&w.status!=='closed'?`<form class="confirm" id="moveForm"><label class="faint" style="display:inline-flex;gap:6px;align-items:center">Starts <input type="date" id="moveDate" value="${w.weekOf}" style="padding:3px 6px"></label><button class="btn small" type="submit">Move</button></form>`:''}${S.admin&&!S.readOnly?`<label class="faint" style="display:inline-flex;gap:6px;align-items:center">Qualifier store <select id="qSel" style="padding:3px 6px"><option value="">none</option>${cfg.locations.map(l=>`<option value="${l.id}" ${qualifier(w)===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select></label>`:qualifier(w)?`<span class="pill clock">Qualifier store: ${esc(locName(qualifier(w)))}</span>`:''}${S.editLayout?`<span class="pill crit">Click cells to close or reopen them</span><button class="btn small" id="layoutDefault">Save as default layout</button><button class="btn small primary" id="layoutDone">Done</button>`:`<span class="faint">${canAct?'Open cells are clickable':'Cells lock as they are taken'}</span>${S.admin&&!S.readOnly?'<button class="btn small" id="layoutBtn">Close shifts</button>':''}`}</div></header><div class="body flush scroll" id="gridWrap"></div><p class="note">Sunday hours differ; the small line under each shift shows Sunday's time. A colored cell is taken, a hatched one is closed this period, and the outlined one is the most recent pick.${qualifier(w)?` Every rep's round-1 picks must include one at ${esc(locName(qualifier(w)))}.`:''}</p></div>
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <div class="panel"><header><h2>Draft order</h2><span class="faint">roster ranking (BLS)</span></header><div class="body flush order" id="orderList"></div></div>
+      <div class="panel"><header><h2>Activity</h2></header><div class="body log" id="logList"></div></div>
+    </div>
+  </div>`);
+  // grid
+  const nWeeks=periodWeeks(w);
+  let g='<table class="grid"><thead>'+(nWeeks>1?'<tr><th></th>'+Array.from({length:nWeeks},(_,k)=>`<th class="wk" colspan="${cfg.days.length}">Week ${k+1} · ${fmtDate(addDays(w.weekOf,k*7))}</th>`).join('')+'</tr>':'')+'<tr><th></th>'+days.map(d=>`<th class="${d.label===cfg.days[0]&&nWeeks>1?'d1':''}">${d.label}${d.date?`<br><span class="faint" style="font-weight:400;letter-spacing:0">${+d.date.slice(8)}</span>`:''}</th>`).join('')+'</tr></thead><tbody>';
+  for(const loc of cfg.locations){ g+=`<tr class="loc-${loc.id}"><th class="loc" colspan="${days.length+1}">${esc(loc.name)}${qualifier(w)===loc.id?'<span class="qbadge">Qualifier</span>':''}</th></tr>`;
+    for(const sh of cfg.shifts){ g+=`<tr class="${loc.id}"><td class="time">${esc(sh.weekday)}<small>Sun ${esc(sh.sunday)}</small></td>`;
+      for(const d of days){ const id=slotId(loc.id,sh.id,d.key); const p=bySlot[id]; const closed=!p&&isClosed(w,id); const off=!p&&!closed&&canAct&&isOff(pid,d.key); const needQ=!p&&!closed&&!off&&canAct&&mustQ&&loc.id!==qualifier(w); const blocked=!p&&!closed&&!off&&!needQ&&canAct&&cfg.maxPerDay&&dayTaken(w,pid,d.key);
+        const live=S.editLayout?(!p?'layout':''):(canAct&&!p&&!closed?'live':'');
+        g+=`<td class="${d.label===cfg.days[0]&&nWeeks>1?'d1':''}"><div class="slot ${p?'taken':closed?'closed':'open'} ${live} ${p&&p.personId===S.me?'mine':''} ${id===latestSlot?'latest':''} ${blocked||off||needQ?'blocked':''} ${!p&&!closed&&mustQ&&loc.id===qualifier(w)&&canAct?'q':''}" ${live&&!blocked&&!off&&!needQ?'tabindex="0" role="button"':''} data-slot="${id}" title="${p?esc(pname(p.personId))+' · round '+w.turns[p.turn].round:closed?'Closed this period':esc(loc.name)+' '+d.label+' '+sh.weekday}">${p?esc(first(p.personId)):closed?'closed':off?'off '+d.label:needQ?esc(locName(qualifier(w)))+' first':blocked?'has '+d.label:''}</div></td>`; }
+      g+='</tr>'; } }
+  g+='</tbody></table>'; $('#gridWrap').innerHTML=g;
+  const gw=$('#gridWrap');
+  if(S.editLayout){ gw.addEventListener('click',e=>{ const s=e.target.closest('.slot.layout'); if(s) toggleClosed(s.dataset.slot); }); $('#layoutDone').addEventListener('click',()=>{ S.editLayout=false; render(); }); $('#layoutDefault').addEventListener('click',saveLayoutDefault); }
+  else if(canAct){ gw.addEventListener('click',e=>{ const s=e.target.closest('.slot.live'); if(s&&!s.classList.contains('blocked')) claim(s.dataset.slot); }); gw.addEventListener('keydown',e=>{ const s=e.target.closest('.slot.live'); if(s&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); claim(s.dataset.slot);} }); }
+  $('#layoutBtn')?.addEventListener('click',()=>{ S.editLayout=true; render(); });
+  $('#passBtn')?.addEventListener('click',pass); $('#undoBtn')?.addEventListener('click',undo); $('#pdfBtn')?.addEventListener('click',savePdf); $('#pdfPrev')?.addEventListener('click',()=>{ try{ previewPdf(null,false); }catch(e){ toast('Could not build the PDF: '+(e.message||e)); } });
+  $('#moveForm')?.addEventListener('submit',e=>{ e.preventDefault(); movePeriod($('#moveDate').value); });
+  $('#rebuildBtn')?.addEventListener('click',rebuildOrder); $('#qSel')?.addEventListener('change',e=>setQualifier(e.target.value)); $('#clockRestart')?.addEventListener('click',restartClock);
+  $('#clockForm')?.addEventListener('submit',e=>{ e.preventDefault(); setClock($('#clockMins').value); });
+  if(w.status==='open'&&clockMs()){ clearInterval(S.tick); S.tick=setInterval(()=>{ const el=$('#timer'); if(!el){ clearInterval(S.tick); return; } const l=clockLeft(week()); el.textContent=fmtLeft(l); el.className='timer '+(l!=null&&l<=0?'up':l!=null&&l<60000?'low':''); if(l!=null&&l<=0&&S.config.autoPass&&S.admin&&!S.readOnly&&!S.autoPassing){ S.autoPassing=true; pass(true).finally(()=>{ S.autoPassing=false; }); } },1000); }
+  $('#resetBtn')?.addEventListener('click',()=>{ S.confirm='reset'; render(); }); $('#resetNo')?.addEventListener('click',()=>{ S.confirm=null; render(); }); $('#resetYes')?.addEventListener('click',resetWeek);
+  // order
+  const seen={}; $('#orderList').innerHTML=w.turns.map((x,i)=>{ const st=w.picks[i]?'done':w.passed[i]?'passed':i===t?'now':'wait'; const roundStart=i===0||w.turns[i-1].round!==x.round; const sub=(x.of||1)>1?` · shift ${x.pick}/${x.of}`:''; return (roundStart?`<div class="p" style="background:var(--paper)"><span></span><span class="eyebrow">Round ${x.round}</span><span></span></div>`:'')+`<div class="p ${st==='now'?'now':st==='done'||st==='passed'?'done':''}"><span class="n">${i+1}</span><span class="name"><span>${esc(pname(x.personId))}${x.personId===S.me?' (you)':''}</span><small>BLS ${person(x.personId)?.bls?.toLocaleString()||'—'}${sub}${person(x.personId)?.skipped?' · skipped '+person(x.personId).skipped:''}</small></span>${st==='done'?`<span class="pill neutral">${esc((()=>{ const [l,,d]=w.picks[i].slot.split('.'); return l+' '+dayLabel(d)+(/^w2/.test(d)?' ②':''); })())}</span>`:st==='passed'?'<span class="pill warn">passed</span>':st==='now'?'<span class="pill clock">on the clock</span>':''}</div>`; }).join('');
+  const now=$('#orderList .p.now'); if(now&&!S.scrolledOnce){ now.scrollIntoView({block:'nearest'}); S.scrolledOnce=true; }
+  $('#logList').innerHTML=(w.log||[]).slice().reverse().slice(0,12).map(l=>`<div><span>${esc(l.text)}</span><span class="faint mono" style="font-size:11px">${new Date(l.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span></div>`).join('')||'<span class="muted">No picks yet.</span>';
+}
+
+function renderShare(){
+  const panel=$('#sharePanel'); if(!panel) return; const people=S.roster.filter(p=>p.active!==false); const withEmail=people.filter(p=>p.email), without=people.filter(p=>!p.email);
+  if(S.shareResult){ const r=S.shareResult; panel.hidden=false; panel.innerHTML=`<div class="form" style="display:block"><h3 style="margin:0 0 8px">Login codes sent</h3><div class="scroll"><table class="codes"><thead><tr><th>Person</th><th>Email</th><th>Status</th></tr></thead><tbody>${r.map(x=>`<tr><td>${esc(x.p.name)}</td><td class="muted">${esc(x.p.email||'—')}</td><td>${x.sent?'<span class="pill good">code emailed</span>':`<span class="pill crit">${esc(x.error||'not sent')}</span>`}</td></tr>`).join('')}</tbody></table></div><p class="note" style="padding:8px 0 0">Each person received a one-time sign-in email. Anyone can also request their own from the sign-in page at any time.</p><div class="actions"><button class="btn" id="shareClose">Close</button></div></div>`;
+    $('#shareClose').addEventListener('click',()=>{ S.shareResult=null; S.sharing=false; render(); }); return; }
+  if(!S.sharing){ panel.hidden=true; panel.innerHTML=''; return; }
+  panel.hidden=false; panel.innerHTML=`<div class="form" style="display:block"><h3 style="margin:0 0 6px">Share login codes</h3><p class="muted" style="margin:0 0 8px">A one-time sign-in email (link, plus a code where set up) goes to each of the ${withEmail.length} people with an email on the roster. ${without.length?`<b>${without.length} without an email</b> (${without.map(p=>esc(p.name)).join(', ')}) cannot sign in until one is added.`:''}</p><div class="actions"><button class="btn" id="shareCancel">Cancel</button><button class="btn primary" id="shareGo">Send codes</button></div></div>`;
+  $('#shareCancel').addEventListener('click',()=>{ S.sharing=false; render(); });
+  $('#shareGo').addEventListener('click',async()=>{ const b=$('#shareGo'); b.disabled=true; b.textContent='Sending…'; const res=await issueCodes(people); S.shareResult=res; const n=res.filter(x=>x.sent).length; toast(`${n} code${n===1?'':'s'} emailed`); render(); });
+}
+function renderRoster(){
+  const m=$('#main'); const cfg=S.config; const sorted=[...S.roster].sort((a,b)=>b.bls-a.bls); const edit=S.editRoster&&S.admin&&!S.readOnly;
+  m.insertAdjacentHTML('beforeend',`<div class="panel"><header><h2>Roster and ranking</h2><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="faint">Draft order follows this ranking (BLS, highest first). Skipped rounds come off the top of a person's turns. Use "Rebuild order" on the Board to apply changes to the open period.</span>${S.admin&&!S.readOnly?`${edit?'<button class="btn small" id="cancelR">Cancel</button> <button class="btn small primary" id="editR">Save changes</button>':'<button class="btn small" id="editR">Edit</button> <button class="btn small primary" id="shareBtn">Share login codes</button>'}`:''}</div></header><div id="sharePanel" hidden></div>
+  <div class="body flush scroll"><table><thead><tr><th class="num">#</th><th>Name</th><th class="num">BLS</th><th>Email</th><th class="num">Skipped rounds</th><th>Days off</th><th>Status</th><th>Admin</th>${edit?'<th></th>':''}</tr></thead><tbody id="rosterRows">${sorted.map((p,i)=>{ const out=p.active===false; const edis=false; return `<tr data-id="${p.id}" class="${out?'muted':''}"><td class="num">${out?'':i+1}</td><td>${edit?`<input type="text" value="${esc(p.name)}" data-f="name">`:esc(p.name)}</td><td class="num">${edit?`<input type="number" value="${p.bls}" data-f="bls">`:p.bls.toLocaleString()}</td><td>${edit?`<input type="email" value="${esc(p.email||'')}" data-f="email" placeholder="name@example.com" style="width:200px;font-family:var(--body)">`:(p.email?esc(p.email):'<span class="pill warn">no email</span>')}</td><td class="num">${edit?`<input type="number" value="${p.skipped||0}" data-f="skipped" min="0">`:(p.skipped||0)}</td><td>${edit?`<div class="days">${cfg.days.map(d=>`<label><input type="checkbox" data-off="${d}" ${(p.offDays||[]).includes(d)?'checked':''}>${d}</label>`).join('')}</div>`:((p.offDays||[]).length?`<span class="pill crit">${p.offDays.join(', ')}</span>`:'<span class="faint">—</span>')}</td><td>${out?'<span class="pill neutral">inactive</span>':edis?`<span class="pill crit">sits out (E-DIS ${p.edis}%)</span>`:p.skipped?`<span class="pill warn">skips ${p.skipped} round${p.skipped>1?'s':''}</span>`:'<span class="pill good">eligible</span>'}</td><td>${edit?`<label class="days" style="display:inline-flex"><label><input type="checkbox" data-f="isAdmin" ${p.isAdmin?'checked':''}>admin</label></label>`:(p.isAdmin?'<span class="pill good">admin</span>':'<span class="faint">—</span>')}</td>${edit?`<td><button class="btn small" data-act="toggle">${out?'Activate':'Deactivate'}</button></td>`:''}</tr>`; }).join('')}</tbody></table></div>
+  ${edit?`<div class="form"><label>New person<input type="text" id="npName" placeholder="Full name"></label><label>Email<input type="email" id="npEmail" placeholder="name@example.com"></label><label>BLS<input type="number" id="npBls" value="0"></label><div class="actions"><button class="btn" id="addP">Add to roster</button><button class="btn primary" id="saveR">Save changes</button></div></div>`:''}
+  <p class="note">Changing BLS or skips here affects the next week you open; the current week keeps the order it started with. Days off apply right away: that person cannot pick a shift on those days.</p></div>`);
+  renderShare(); $('#shareBtn')?.addEventListener('click',()=>{ S.sharing=true; S.shareResult=null; render(); });
+  let collectImpl=()=>{}; const collect=()=>collectImpl();
+  const saveAll=async()=>{ collect(); if(await saveRoster()){ toast('Roster saved'); S.editRoster=false; render(); } };
+  $('#editR')?.addEventListener('click',()=>{ if(edit) saveAll(); else { S.editRoster=true; render(); } });
+  $('#cancelR')?.addEventListener('click',async()=>{ const snap=await S.db.doc('draft/roster').get(); if(snap.exists) S.roster=JSON.parse(JSON.stringify(snap.data().items||[])); S.editRoster=false; render(); });
+  if(!edit) return;
+  collectImpl=()=>{ document.querySelectorAll('#rosterRows tr').forEach(tr=>{ const p=person(tr.dataset.id); p.offDays=[...tr.querySelectorAll('input[data-off]:checked')].map(i=>i.dataset.off); tr.querySelectorAll('input[data-f]').forEach(inp=>{ const f=inp.dataset.f; if(f==='isAdmin'){ p.isAdmin=inp.checked; return; } if(f==='name') p.name=inp.value.trim()||p.name; else if(f==='email') p.email=inp.value.trim().toLowerCase(); else if(f==='edis') p.edis=inp.value===''?null:+inp.value; else p[f]=+inp.value||0; }); }); };
+  $('#rosterRows').addEventListener('click',async e=>{ const b=e.target.closest('button[data-act]'); if(!b) return; collect(); const p=person(b.closest('tr').dataset.id); p.active=p.active===false; if(await saveRoster()) toast(p.active===false?p.name+' deactivated':p.name+' activated'); render(); });
+  $('#addP').addEventListener('click',async()=>{ collect(); const name=$('#npName').value.trim(); if(!name) return; let id=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); let b=id,n=2; while(person(id)) id=b+'-'+(n++); S.roster.push({id,name,email:$('#npEmail').value.trim().toLowerCase(),bls:+$('#npBls').value||0,skipped:0,active:true,isAdmin:false}); if(await saveRoster()) toast('Added '+name); render(); });
+  $('#saveR').addEventListener('click',saveAll);
+}
+
+function renderWeeks(){
+  const m=$('#main'); const ids=Object.keys(S.weeks).sort().reverse(); const next=iso(mondayOf(new Date(Date.now()+7*864e5)));
+  m.insertAdjacentHTML('beforeend',`<div class="panel"><header><h2>Draft periods</h2>${S.admin&&!S.readOnly?`<form class="confirm" id="newWeek"><label class="muted">Starts <input type="date" id="nwDate" value="${next}"></label><label class="muted">Length <select id="nwLen"><option value="1" ${(S.config.periodWeeks||2)===1?'selected':''}>1 week</option><option value="2" ${(S.config.periodWeeks||2)===2?'selected':''}>2 weeks</option></select></label><button class="btn primary small" type="submit">Open draft</button></form>`:''}</header>
+  <div class="body flush scroll"><table><thead><tr><th>Period</th><th>Length</th><th>Status</th><th class="num">Picks</th><th class="num">Turns</th><th>Opened</th><th></th></tr></thead><tbody>${ids.map(id=>{ const w=S.weeks[id]; return `<tr><td><b>${fmtRange(w)}</b></td><td class="muted">${periodWeeks(w)===2?'2 weeks':'1 week'}</td><td><span class="pill ${w.status==='open'?'clock':w.status==='complete'?'good':'neutral'}">${w.status}</span></td><td class="num">${Object.keys(w.picks).length}</td><td class="num">${w.turns.length}</td><td class="muted">${new Date(w.createdAt).toLocaleDateString()}</td><td><button class="btn small" data-open="${id}">${id===S.weekId?'Viewing':'View'}</button>${S.pinned&&id===S.weekId?' <span class="faint">(pinned; the board stays here until you pick another)</span>':''}${S.admin&&!S.readOnly&&w.status==='open'?` <button class="btn small danger" data-close="${id}">Close</button>`:''}</td></tr>`; }).join('')||'<tr><td colspan="7" class="muted">No draft periods yet.</td></tr>'}</tbody></table></div>
+  <p class="note">A period can start on any day; the grid's columns follow from the start date. Opening a new period builds the draft order from the roster ranking as it stands now, closes any period still open, and every open copy of the board switches to it. The start date of an open period can be changed from the Board.</p></div>`);
+  m.addEventListener('click',async e=>{ const o=e.target.closest('[data-open]'); if(o){ S.weekId=o.dataset.open; S.pinned=S.weeks[o.dataset.open]?.status!=='open'; S.scrolledOnce=false; location.hash='#board'; render(); return; } const c=e.target.closest('[data-close]'); if(c){ const w=S.weeks[c.dataset.close]; w.status='closed'; if(await write(()=>S.db.doc('weeks/'+w.weekOf).set(w))) toast('Period closed'); render(); } });
+  $('#newWeek')?.addEventListener('submit',e=>{ e.preventDefault(); const d=$('#nwDate').value; if(!d) return; startWeek(d,+$('#nwLen').value); });
+}
+
+function renderAdmins(){
+  const m=$('#main'); const admins=S.roster.filter(p=>p.isAdmin&&p.active!==false).sort((a,b)=>a.name.localeCompare(b.name)); const canManage=S.admin&&!S.readOnly;
+  m.insertAdjacentHTML('beforeend',`<div class="panel"><header><h2>Admins</h2><span class="faint">Admins can pick for anyone, pass, undo, reset, close shifts, move the period and change these settings</span></header>
+  <div class="body flush scroll"><table><thead><tr><th>Who</th><th>Email</th><th>Role</th><th></th></tr></thead><tbody>
+    ${S.config.ownerEmail?`<tr><td><b>Board owner</b>${S.owner?' <span class="faint">(you)</span>':''}</td><td class="muted">${esc(S.config.ownerEmail)}</td><td><span class="pill good">always admin</span></td><td></td></tr>`:''}
+    ${admins.map(p=>`<tr><td><b>${esc(p.name)}</b>${p.id===S.me?' <span class="faint">(you)</span>':''}</td><td class="muted">${esc(p.email||'no email')}</td><td><span class="pill good">admin</span></td><td>${canManage?`<button class="btn small danger" data-rm="${p.id}">Remove</button>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No alternate admins yet.</td></tr>'}
+  </tbody></table></div>
+  ${canManage?`<div class="form"><label>Add an admin<select id="adminSel"><option value="">choose a person</option>${S.roster.filter(p=>p.active!==false&&!p.isAdmin).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name)}${p.email?'':' (no email yet)'}</option>`).join('')}</select></label><div class="actions"><button class="btn primary" id="adminAdd">Add admin</button></div></div>`:''}
+  <p class="note">Admin rights follow the person's email: whoever signs in with that address gets the admin tools. A person needs an email on the roster before they can sign in at all.</p></div>`);
+  if(!canManage) return;
+  const setAdmin=async(pid,v)=>{ const p=person(pid); if(!p) return; p.isAdmin=v; if(await saveRoster()) toast(v?p.name+' is now an admin':p.name+' removed as admin'); render(); };
+  $('#adminAdd').addEventListener('click',()=>{ const v=$('#adminSel').value; if(v) setAdmin(v,true); });
+  m.addEventListener('click',e=>{ const r=e.target.closest('[data-rm]'); if(r) setAdmin(r.dataset.rm,false); });
+}
+function renderSettings(){
+  renderAdmins();
+  const m=$('#main'); const c=S.config; const ro=!(S.admin&&!S.readOnly);
+  m.insertAdjacentHTML('beforeend',`<div class="panel"><header><h2>Draft rules</h2>${ro?'<span class="faint">Only an admin can change these</span>':''}</header>
+  <form class="form" id="cfgForm" style="border-top:0">
+    <label>Team name<input type="text" id="cTeam" value="${esc(c.teamName)}" ${ro?'disabled':''}></label>
+    <label>Shifts picked per round (comma-separated, one number per round)<input type="text" id="cRounds" value="${perRound(c).join(', ')}" placeholder="2, 2, 1" ${ro?'disabled':''}></label>
+    <label>Max shifts per person per day<input type="number" id="cMax" min="0" max="3" value="${c.maxPerDay||0}" ${ro?'disabled':''}></label>
+        <label>Draft period length<select id="cPeriod" ${ro?'disabled':''}><option value="1" ${(c.periodWeeks||2)===1?'selected':''}>1 week</option><option value="2" ${(c.periodWeeks||2)===2?'selected':''}>2 weeks (biweekly)</option></select></label>
+    <label>Qualifier store (round 1 must include one pick here)<select id="cQual" ${ro?'disabled':''}><option value="">none</option>${c.locations.map(l=>`<option value="${l.id}" ${c.qualifierStore===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select></label>
+    <label>Minutes on the clock per pick (0 = no clock)<input type="number" id="cClock" min="0" max="120" value="${+c.clockMinutes||0}" ${ro?'disabled':''}></label>
+    <label>When time runs out<select id="cAuto" ${ro?'disabled':''}><option value="0" ${!c.autoPass?'selected':''}>Show "time's up", admin decides</option><option value="1" ${c.autoPass?'selected':''}>Pass the turn automatically</option></select></label>
+    <label>Board owner email (always admin)<input type="email" id="cOwner" value="${esc(c.ownerEmail||'')}" ${ro?'disabled':''}></label>
+    <label>Order each round<select id="cSnake" ${ro?'disabled':''}><option value="0" ${!c.snake?'selected':''}>Same order every round</option><option value="1" ${c.snake?'selected':''}>Snake (reverse on even rounds)</option></select></label>
+    ${ro?'':'<div class="actions"><button class="btn primary" type="submit">Save rules</button></div>'}
+  </form>
+  <p class="note">Period length, picks per round and the qualifier default apply when the next period is opened; the clock applies right away. "2, 2, 1" means everyone takes two shifts in round 1, two in round 2 and one in round 3 (${shiftsPerPerson(c)} each). 0 for max per day means no limit.</p></div>
+  <div class="panel"><header><h2>Shift template</h2></header><div class="body flush scroll"><table><thead><tr><th>Row</th><th>Mon–Sat</th><th>Sunday</th></tr></thead><tbody>${c.shifts.map((s,i)=>`<tr><td class="num">${i+1}</td><td>${ro?esc(s.weekday):`<input type="text" value="${esc(s.weekday)}" data-sh="${s.id}" data-f="weekday">`}</td><td>${ro?esc(s.sunday):`<input type="text" value="${esc(s.sunday)}" data-sh="${s.id}" data-f="sunday">`}</td></tr>`).join('')}</tbody></table></div><div class="body"><span class="muted">Locations: ${c.locations.map(l=>esc(l.name)).join(', ')}. ${c.locations.length*c.shifts.length*c.days.length} cells per week.</span></div></div>`);
+  if(ro) return;
+  $('#cfgForm').addEventListener('submit',async e=>{ e.preventDefault(); c.teamName=$('#cTeam').value.trim()||c.teamName; { const arr=$('#cRounds').value.split(/[,\s]+/).map(n=>parseInt(n)).filter(n=>n>0); c.picksPerRound=arr.length?arr:[1]; c.rounds=c.picksPerRound.length; } c.maxPerDay=+$('#cMax').value||0; c.snake=$('#cSnake').value==='1'; c.periodWeeks=+$('#cPeriod').value||2; c.ownerEmail=$('#cOwner').value.trim().toLowerCase(); c.qualifierStore=$('#cQual').value||null; c.clockMinutes=Math.max(0,+$('#cClock').value||0); c.autoPass=$('#cAuto').value==='1'; document.querySelectorAll('input[data-sh]').forEach(i=>{ const s=c.shifts.find(x=>x.id===i.dataset.sh); if(s) s[i.dataset.f]=i.value.trim(); }); if(await saveConfig()) toast('Rules saved'); render(); });
+}
+
+route(); boot();
+})();
+</script>
+</body>
+</html>
